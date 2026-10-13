@@ -1,0 +1,18 @@
+# Runtime configuration. Values like ${DB_URL:...} read an environment variable and fall back to the
+# default after the colon, so the same jar runs locally and in AWS without code changes.
+spring:
+  application:
+    name: royalty-split-ledger
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/royalties}
+    username: ${DB_USER:royalties}
+    password: ${DB_PASSWORD:royalties}
+  flyway:
+    # Applies src/main/resources/db/migration/V*.sql on startup (see V1__ledger_schema.sql).
+    enabled: true
+
+server:
+  error:
+    # Our GlobalExceptionHandler (api/GlobalExceptionHandler.java) writes RFC 7807 problem JSON;
+    # don't leak stack traces to clients.
+    include-stacktrace: never

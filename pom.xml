@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BUILD FILE (Maven)
+  What: declares the Java version, the libraries this service depends on, and how tests run.
+  Why these libraries (each maps to a résumé bullet, see docs/LEARNING_GUIDE.md):
+    - spring-boot-starter-web ........ the REST API (api/ package)
+    - spring-boot-starter-jdbc ....... plain SQL via JdbcClient. We avoid JPA on purpose: a ledger needs
+                                       exact control over locking (SELECT ... FOR UPDATE) and inserts.
+    - spring-boot-starter-validation . rejects bad JSON before it reaches the money math
+    - flyway ......................... versioned schema in src/main/resources/db/migration
+    - postgresql ..................... the JDBC driver; the schema relies on Postgres triggers and row locks
+    - testcontainers ................. integration tests start a throwaway Postgres in Docker, so tests
+                                       exercise the SAME triggers and locks production uses
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Inheriting from the Boot parent pins compatible versions for every Spring/Testcontainers/Flyway jar,
+         which is why most dependencies below have no <version>. -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.jacobbelay</groupId>
+    <artifactId>royalty-split-ledger</artifactId>
+    <version>0.1.0</version>
+    <name>royalty-split-ledger</name>
+    <description>Splits music royalties among collaborators on an append-only double-entry ledger.</description>
+
+    <properties>
+        <java.version>21</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <!-- Flyway 10+ ships database support as separate modules; without this one it refuses to talk to Postgres. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ===== Test-only ===== -->
+        <!-- Brings JUnit 5, AssertJ, Mockito and MockMvc. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Unit tests (*Test.java) run in `mvn test`; database tests (*IT.java) run in `mvn verify`.
+                 Keeping them apart means the fast math tests give feedback in seconds, even without Docker. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
