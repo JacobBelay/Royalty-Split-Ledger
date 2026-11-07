@@ -14,8 +14,7 @@ statements come in. Every one of these movements is written into a **double-entr
 edited. The system has to stay correct when the same statement arrives twice, or when two payout requests land
 at the same millisecond.
 
-`ApiFlowIT` (in `src/test/...`) runs exactly this story over HTTP. It is a good place to start and to come
-back to at the end.
+`ApiFlowIT` (in `src/test/...`) runs exactly this story over HTTP. It is a good place to start and to come back to at the end.
 
 ## Reading order
 

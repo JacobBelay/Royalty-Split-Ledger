@@ -1,8 +1,8 @@
-package com.jacobbelay.royalty.money;
+package com.jacobbelay.royalty.money; // Package Declaration
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.Objects;
+import java.math.BigDecimal; // Importing Big Decimal
+import java.math.RoundingMode; // Importing Rounding Mode
+import java.util.Objects; 
 
 /**
  * An amount of money in one currency (CAD), always stored with exactly 2 decimal places (cents).
@@ -21,15 +21,19 @@ import java.util.Objects;
  *
  * <p>Negative values are allowed (a balance can go negative); rules like "line amounts must be positive"
  * are enforced where they apply (see {@link com.jacobbelay.royalty.ledger.EntryLine}).
+ * 
+ * 
  */
-public record Money(BigDecimal amount) implements Comparable<Money> {
 
-    public static final Money ZERO = new Money(BigDecimal.ZERO);
+// Parameters Force Money to only take a big decimal object
+public record Money(BigDecimal amount) implements Comparable<Money> { // Use record to enforce the immutablility of the money coming in
+
+    public static final Money ZERO = new Money(BigDecimal.ZERO); // Stores Big Money Zero in an Object, Creating the starter value and the lower boundary
 
     /** Compact constructor: runs on every construction, so no Money with the wrong scale can exist. */
     public Money {
-        Objects.requireNonNull(amount, "amount");
-        amount = amount.setScale(2, RoundingMode.UNNECESSARY);   // throws ArithmeticException on 1.005
+        Objects.requireNonNull(amount, "amount"); // Throw Null Pointer Exception if amount Returns a null value
+        amount = amount.setScale(2, RoundingMode.UNNECESSARY);  //Set Scale forces the two decimal places, throws ArithmeticException on 1.005 to ensure the money does not get lost through the rest of the proccessing of the app
     }
 
     /** {@code Money.of("12.34")}. Strings avoid the double-literal trap: {@code new BigDecimal(0.1)} is 0.1000000000000000055... */
