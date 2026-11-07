@@ -9,5 +9,5 @@ import com.jacobbelay.royalty.money.Money;
  * {@link com.jacobbelay.royalty.recoupment.RecoupmentCalculator}, decides how much of it repays an advance
  * and how much becomes payable.
  */
-public record Allocation(long collaboratorId, Money amount) {
+public record Allocation(long collaboratorId, Money amount) { // Again record completes all of the classic java class methods
 }
