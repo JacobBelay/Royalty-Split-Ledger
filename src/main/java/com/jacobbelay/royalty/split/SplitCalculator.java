@@ -36,7 +36,7 @@ import java.util.Set;
  */
 public final class SplitCalculator {
 
-    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
+    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100); // Setting the constant value to represetnt 100 percent
 
     private SplitCalculator() {
     }

@@ -48,7 +48,7 @@ public record Money(BigDecimal amount) implements Comparable<Money> { // Use rec
 
     /** The amount as whole cents, e.g. 12.34 gives 1234. {@code longValueExact} throws rather than overflow silently. */
     public long cents() {
-        return amount.movePointRight(2).longValueExact(); // Throw Arthi Exception If the long doesnt fit
+        return amount.movePointRight(2).longValueExact(); // Throw Arthi Exception If the long doesnt fit, this again is pointless because only 2 decimal numbers are able to be proccessed by the ledger
     }
 
     public Money plus(Money other)  { return new Money(amount.add(other.amount)); }
