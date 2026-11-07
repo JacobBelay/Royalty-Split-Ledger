@@ -37,7 +37,7 @@ public record Money(BigDecimal amount) implements Comparable<Money> { // Use rec
     }
 
     /** {@code Money.of("12.34")}. Strings avoid the double-literal trap: {@code new BigDecimal(0.1)} is 0.1000000000000000055... */
-    public static Money of(String amount) {
+    public static Money of(String amount) { // Converts Input from string to big decimal
         return new Money(new BigDecimal(amount));
     }
 
@@ -48,7 +48,7 @@ public record Money(BigDecimal amount) implements Comparable<Money> { // Use rec
 
     /** The amount as whole cents, e.g. 12.34 gives 1234. {@code longValueExact} throws rather than overflow silently. */
     public long cents() {
-        return amount.movePointRight(2).longValueExact();
+        return amount.movePointRight(2).longValueExact(); // Throw Arthi Exception If the long doesnt fit
     }
 
     public Money plus(Money other)  { return new Money(amount.add(other.amount)); }
