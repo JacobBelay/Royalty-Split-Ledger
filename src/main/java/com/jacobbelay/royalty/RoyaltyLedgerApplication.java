@@ -21,6 +21,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class RoyaltyLedgerApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(RoyaltyLedgerApplication.class, args);
+        SpringApplication.run(RoyaltyLedgerApplication.class, args); // Run the spring boot app
     }
 }
