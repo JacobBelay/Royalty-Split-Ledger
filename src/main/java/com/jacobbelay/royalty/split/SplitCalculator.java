@@ -47,27 +47,28 @@ public final class SplitCalculator {
      * @return one allocation per share, in the same order as {@code shares}, summing exactly to {@code gross}
      */
     public static List<Allocation> split(Money gross, List<Share> shares) {
-        Objects.requireNonNull(gross, "gross");
-        if (gross.isNegative()) {
+        Objects.requireNonNull(gross, "gross"); // Throws a null point exception for gross
+        if (gross.isNegative()) { // throws an illegal argument exceptions for gross
             throw new IllegalArgumentException("cannot split a negative amount: " + gross);
-        }
+        } 
         validateShares(shares);
 
-        long grossCents = gross.cents();
+        long grossCents = gross.cents(); // Turn gross into a long value
 
         // Steps 1 and 2: exact share in cents, then the floor of it.
         // exact = grossCents * percent / 100. Dividing by 100 always terminates in base 10,
         // so this BigDecimal division is exact and needs no rounding mode.
-        int n = shares.size();
-        long[] cents = new long[n];
-        BigDecimal[] remainder = new BigDecimal[n];
+
+        int n = shares.size(); // Find the amount of shares 
+        long[] cents = new long[n]; // Make a new list of long that is the size of the shares
+        BigDecimal[] remainder = new BigDecimal[n];// Make a new list of big decimal of length n as well
         long allocated = 0;
         for (int i = 0; i < n; i++) {
-            BigDecimal exact = BigDecimal.valueOf(grossCents).multiply(shares.get(i).percent()).divide(HUNDRED);
-            BigDecimal floor = exact.setScale(0, RoundingMode.FLOOR);
-            cents[i] = floor.longValueExact();
-            remainder[i] = exact.subtract(floor);           // the fraction of a cent this person lost, 0 <= r < 1
-            allocated += cents[i];
+            BigDecimal exact = BigDecimal.valueOf(grossCents).multiply(shares.get(i).percent()).divide(HUNDRED);// Compute exact share in cents
+            BigDecimal floor = exact.setScale(0, RoundingMode.FLOOR); // Removes all digits after the decimal point
+            cents[i] = floor.longValueExact();   // Convert floor into long
+            remainder[i] = exact.subtract(floor);    // Subtract the exact share by what was cut    // the fraction of a cent this person lost, 0 <= r < 1
+            allocated += cents[i]; // Store what is to be handed out just after flooring
         }
 
         // Step 3: leftover cents. Because shares sum to 100%, the lost fractions sum to a whole number < n.
