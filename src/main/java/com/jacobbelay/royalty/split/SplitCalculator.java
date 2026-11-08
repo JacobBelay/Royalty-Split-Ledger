@@ -81,14 +81,14 @@ public final class SplitCalculator {
         }
         order.sort(Comparator
                 .<Integer, BigDecimal>comparing(i -> remainder[i]).reversed()
-                .thenComparingLong(i -> shares.get(i).collaboratorId()));
-        for (int k = 0; k < leftover; k++) {
-            cents[order.get(k)] += 1;
+                .thenComparingLong(i -> shares.get(i).collaboratorId())); // Only The people who have the biggest remainder get sorted and are THE ONLY ONES who get a cent
+        for (int k = 0; k < leftover; k++) {//                               ^^^^^^^^^^
+            cents[order.get(k)] += 1;       //                               ^^^^^^^^^^
         }
 
         List<Allocation> result = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            result.add(new Allocation(shares.get(i).collaboratorId(), Money.ofCents(cents[i])));
+            result.add(new Allocation(shares.get(i).collaboratorId(), Money.ofCents(cents[i]))); // ADDS the additional cent for the highest remainder element in the order list
         }
         return result;
     }
@@ -99,9 +99,9 @@ public final class SplitCalculator {
      *
      * @throws IllegalArgumentException with a message safe to show the API caller
      */
-    public static void validateShares(List<Share> shares) {
+    public static void validateShares(List<Share> shares) { // / Exceptions for shares
         if (shares == null || shares.isEmpty()) {
-            throw new IllegalArgumentException("a release needs at least one share");
+            throw new IllegalArgumentException("a release needs at least one share"); 
         }
         Set<Long> seen = new HashSet<>();
         BigDecimal total = BigDecimal.ZERO;
