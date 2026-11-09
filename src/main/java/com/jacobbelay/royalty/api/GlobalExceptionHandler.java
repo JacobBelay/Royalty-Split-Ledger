@@ -6,6 +6,7 @@ import com.jacobbelay.royalty.common.NotFoundException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -54,5 +55,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessRuleException.class)
     ProblemDetail unprocessable(BusinessRuleException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+    }
+
+    /**
+     * A failed sign-in at POST /api/auth/login.
+     *
+     * <p>401, not 403: the caller has not proved who they are. The message is the exception's own, which
+     * security/AuthService.java deliberately makes identical for "no such user" and "wrong password" — a
+     * different message for each would let anyone discover which usernames exist.
+     *
+     * <p>Rejections that happen BEFORE a controller (missing or expired token, insufficient role) never get
+     * here, because they are decided in the servlet filter chain; security/ProblemSecurityHandler.java
+     * writes those in this same problem+json shape.
+     */
+    @ExceptionHandler(BadCredentialsException.class)
+    ProblemDetail badCredentials(BadCredentialsException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
     }
 }

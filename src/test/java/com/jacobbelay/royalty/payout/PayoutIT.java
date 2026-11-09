@@ -95,7 +95,11 @@ class PayoutIT extends AbstractPostgresIT {
     @Test
     void unknownCollaboratorAndMissingKeyAreRejected() {
         assertThatThrownBy(() -> payouts.requestPayout(999, "key-1")).isInstanceOf(NotFoundException.class);
+        // Both halves of the guard: an absent header arrives as null, a header of spaces as blank. Either
+        // one would otherwise be accepted as a "unique" key and defeat the replay protection entirely.
+        assertThatThrownBy(() -> payouts.requestPayout(1, null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> payouts.requestPayout(1, " ")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> payouts.requestPayout(1, "")).isInstanceOf(IllegalArgumentException.class);
     }
 
     /**

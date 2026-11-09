@@ -117,16 +117,83 @@ Tests: `StatementImportIT`, `PayoutIT`. `support/Concurrently` fires N threads a
 | `NotFoundException` | 404 |
 | `ConflictException` | 409 |
 | `BusinessRuleException` | 422 |
+| `BadCredentialsException` | 401 (a failed sign-in) |
 
 - Status code convention: 201 when something was created, 200 when a replay returned the existing result.
+- Rejections decided *before* a controller runs — no token, expired token, wrong role — never reach this
+  class, because they happen in the servlet filter chain. `security/ProblemSecurityHandler` writes those in
+  the same shape; see §9.
 
 Test: `ApiFlowIT`.
 
-### 9. Test support: `src/test/.../support/AbstractPostgresIT`
+### 9. Security: `security/*`
+**Idea: authentication answers "who are you"; authorization answers "may you do this". They are different
+questions, and the second one needs more than a role.**
+
+Read in this order:
+
+1. `V2__app_user.sql` — the accounts table. The interesting column is `collaborator_id`: it links an ARTIST
+   user to the collaborator they *are*. A `CHECK` makes sure an ARTIST always has one and an ADMIN never
+   does, the same trick V1 uses for `('CASH', NULL)`.
+2. `TokenService` — mints the JWT. A JWT is three base64 chunks: header, claims, signature. **The claims are
+   readable by anyone** — it is signed, not encrypted — so never put a secret in one. The signature is what
+   makes a claim trustworthy.
+3. `SecurityConfig` — the request path and the rules, in one file. Verifies the signature, maps the `roles`
+   claim to Spring authorities, then allows or refuses each URL.
+4. `AccessPolicy` — the ownership check, and the most important idea here (below).
+5. `ProblemSecurityHandler` — writes 401s and 403s as the same RFC 7807 problem JSON the rest of the API
+   uses, because those responses are produced in the filter chain and never reach `GlobalExceptionHandler`.
+
+**Why a role is not enough.** `hasRole("ARTIST")` is true for *every* artist, so a rule written only in
+roles would let Ana read Bob's earnings by changing the number in the URL. That bug has a name — broken
+object level authorization — and it is the most common serious flaw in REST APIs. The fix is to compare the
+`{id}` in the URL against the `collaboratorId` claim in the caller's token, which they cannot forge without
+the signing key:
+
+```java
+@PreAuthorize("@access.canActForCollaborator(authentication, #id)")
+@GetMapping("/{id}/balances")
+```
+
+`@PreAuthorize` only works because of `@EnableMethodSecurity` on `SecurityConfig`. Without that annotation
+the checks are silently ignored — present in the source, doing nothing. That is why `SecurityAccessIT`
+exists as well as `AccessPolicyTest`: the unit test would still pass with `@PreAuthorize` deleted.
+
+| Endpoint | ADMIN | ARTIST |
+|---|---|---|
+| `POST /api/auth/login` | open to everyone | open to everyone |
+| `POST /api/auth/users` | yes | no — else an artist could mint an ADMIN account |
+| `POST /api/collaborators`, `/releases`, `/statements`, `/{id}/advances` | yes | no |
+| `GET /api/ledger/trial-balance` | yes | no — it is everyone's money summed |
+| `GET /api/collaborators/{id}/balances` | any id | **their own id only** |
+| `POST /api/collaborators/{id}/payouts` | any id | **their own id only** |
+| anything else | denied | denied |
+
+Three habits worth copying from this package:
+
+- **401 vs 403.** 401 means "I do not know who you are" (missing, expired or badly signed token); 403 means
+  "I know, and you may not". The difference tells a client whether signing in again would help.
+- **Fail closed.** The last rule is `anyRequest().denyAll()`, not `authenticated()`. A new endpoint is locked
+  until someone writes a rule for it on purpose, so forgetting to think about access is safe.
+- **Say as little as possible when refusing.** A wrong password and an unknown username produce byte-for-byte
+  identical 401s, and `AuthService` deliberately runs BCrypt either way (`DUMMY_HASH`) so they take the same
+  time too. Otherwise the response — or just the delay — reveals which usernames exist.
+
+Tests: `AccessPolicyTest` and `TokenServiceTest` (pure logic and crypto), `SecurityAccessIT` (the access
+matrix over real HTTP), `AuthIT` (sign-in, hashing, account rules), `AdminBootstrapIT` (first-run seeding).
+`support/TestTokens` forges the tokens a real client never sends — expired, foreign-signed, wrong issuer —
+because `TokenService` can only produce valid ones, and proving a door is locked needs a key that should not
+fit.
+
+### 10. Test support: `src/test/.../support/AbstractPostgresIT`
 **Idea: integration tests need a real database, and each test starts from an empty one.**
 - Testcontainers starts Postgres in Docker, or the tests use `TEST_DATABASE_URL` if you set it.
 - Each test begins with `TRUNCATE` and ends by checking that the trial balance is balanced. That makes
   "the books balance" an invariant checked after every single test, not just in one test.
+- `adminToken()` / `artistToken(id)` mint **real** signed tokens through the real `AuthService`, rather than
+  faking a login with `@WithMockUser`. Two reasons: the signing and verification code gets covered by the
+  same tests, and only a real token carries the `collaboratorId` claim that `AccessPolicy` reads — with a
+  mocked principal the ownership rules would never actually be exercised.
 
 ## Concepts cheat-sheet
 
@@ -140,6 +207,15 @@ Test: `ApiFlowIT`.
 | Deferred constraint | A check that runs at COMMIT instead of per row | V1 schema, journal_line_balanced |
 | Invariant | A rule that must always be true (debits = credits, parts = whole) | tests |
 | Property test | Check an invariant on many random inputs | SplitCalculatorTest |
+| Authentication | Proving who you are | AuthService, TokenService |
+| Authorization | Deciding what you may do | SecurityConfig, AccessPolicy |
+| JWT | Signed, *readable* token carrying claims; trust comes from the signature | TokenService |
+| Stateless auth | Server stores no session; every request re-proves itself | SecurityConfig |
+| BCrypt | Deliberately slow, salted password hash | SecurityConfig#passwordEncoder |
+| Broken object level authorization | Right role, wrong row — the bug `@PreAuthorize` prevents | AccessPolicy |
+| User enumeration | Learning which usernames exist from error or timing differences | AuthService#DUMMY_HASH |
+| Fail closed | Unknown requests are denied, not allowed | `anyRequest().denyAll()` |
+| Coverage gate | Build fails if tested code drops below a threshold | pom.xml, jacoco `check` |
 
 ## Exercises
 
@@ -149,4 +225,9 @@ Test: `ApiFlowIT`.
    Hint: `SUM(...) OVER (ORDER BY id)`.
 3. Remove `ORDER BY id` from `lockAllForUpdate`, then write a test with two statements that touch the same
    two collaborators in opposite order, and watch Postgres report a deadlock.
-4. Add Spring Security with JWT: ADMIN can import statements, and ARTIST can only see their own balances.
+4. Delete `@EnableMethodSecurity` from `SecurityConfig` and run the tests. `AccessPolicyTest` still passes;
+   `SecurityAccessIT` fails. That is the difference between testing a rule and testing that it is wired up.
+5. Add a refresh-token endpoint, then work out what it costs you: you now need server-side state to revoke
+   one, which is exactly the trade-off `TokenService` avoids by keeping the TTL short.
+6. Add a `VIEWER` role that may read the trial balance but change nothing, and see how much of
+   `SecurityConfig` has to change. (Answer: one line — which is the point of keeping the rules in one file.)

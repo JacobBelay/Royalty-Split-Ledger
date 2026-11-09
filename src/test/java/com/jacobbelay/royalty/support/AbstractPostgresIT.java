@@ -6,15 +6,19 @@ import com.jacobbelay.royalty.ledger.Account;
 import com.jacobbelay.royalty.ledger.LedgerRepository;
 import com.jacobbelay.royalty.money.Money;
 import com.jacobbelay.royalty.release.ReleaseService;
+import com.jacobbelay.royalty.security.AuthService;
+import com.jacobbelay.royalty.security.Role;
 import com.jacobbelay.royalty.split.Share;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.util.List;
@@ -82,6 +86,10 @@ public abstract class AbstractPostgresIT {
     @Autowired protected LedgerRepository ledger;
     @Autowired protected CollaboratorRepository collaborators;
     @Autowired protected ReleaseService releases;
+    @Autowired protected AuthService auth;
+
+    /** Cached per test so repeated requests in one scenario don't re-run BCrypt (~100ms each). */
+    private String adminToken;
 
     /**
      * TRUNCATE is allowed even though UPDATE/DELETE on the ledger are blocked: the append-only triggers only
@@ -89,8 +97,9 @@ public abstract class AbstractPostgresIT {
      */
     @BeforeEach
     void resetDatabase() {
-        jdbc.sql("TRUNCATE journal_line, journal_entry, payout, advance, statement_import, release_share, release, collaborator RESTART IDENTITY CASCADE")
+        jdbc.sql("TRUNCATE app_user, journal_line, journal_entry, payout, advance, statement_import, release_share, release, collaborator RESTART IDENTITY CASCADE")
                 .update();
+        adminToken = null;      // the user it belonged to was just deleted
     }
 
     @AfterEach
@@ -118,5 +127,32 @@ public abstract class AbstractPostgresIT {
 
     protected Money cash() {
         return ledger.balance(Account.cash());
+    }
+
+    // ---------- Authentication helpers -------------------------------------------------------------------
+    // These mint REAL tokens through the real AuthService and TokenService rather than faking a security
+    // context with @WithMockUser. Two reasons: the signing and verification code is then covered by the same
+    // tests, and an ARTIST token carries the collaboratorId claim that security/AccessPolicy actually reads —
+    // a mocked principal has no such claim, so the ownership rules would never really be exercised.
+
+    /** Token for a fresh ADMIN. Created once per test, since @BeforeEach empties app_user. */
+    protected String adminToken() {
+        if (adminToken == null) {
+            auth.createUser("it-admin", "it-admin-password", Role.ADMIN, null);
+            adminToken = auth.login("it-admin", "it-admin-password").token();
+        }
+        return adminToken;
+    }
+
+    /** Token for an ARTIST tied to {@code collaboratorId} — i.e. who may act only for that collaborator. */
+    protected String artistToken(long collaboratorId) {
+        String username = "it-artist-" + collaboratorId;
+        auth.createUser(username, "it-artist-password", Role.ARTIST, collaboratorId);
+        return auth.login(username, "it-artist-password").token();
+    }
+
+    /** Attaches a bearer token, the way a real client would. */
+    protected static MockHttpServletRequestBuilder bearing(MockHttpServletRequestBuilder request, String token) {
+        return request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
     }
 }

@@ -18,6 +18,7 @@ import com.jacobbelay.royalty.payout.PayoutService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -65,7 +66,19 @@ public class CollaboratorController {
         return new CollaboratorResponse(c.id(), c.name(), c.payoutThreshold().amount());
     }
 
-    /** Derived live from the ledger. There is no stored balance to go stale. */
+    /**
+     * Derived live from the ledger. There is no stored balance to go stale.
+     *
+     * <p>{@code @PreAuthorize} is where "an artist reads only their own balances" is enforced.
+     * security/SecurityConfig.java has already established that the caller is an ADMIN or an ARTIST; only
+     * this check can compare the {@code {id}} in the URL with the collaborator the caller's token is tied
+     * to. {@code #id} refers to the method argument and {@code authentication} to the current caller;
+     * returning false produces a 403 from security/ProblemSecurityHandler.java.
+     *
+     * <p>Without it, any signed-in artist could read every other artist's earnings by changing the number
+     * in the URL.
+     */
+    @PreAuthorize("@access.canActForCollaborator(authentication, #id)")
     @GetMapping("/{id}/balances")
     public BalancesResponse balances(@PathVariable long id) {
         Collaborator c = collaborators.findById(id)
@@ -84,7 +97,12 @@ public class CollaboratorController {
     /**
      * The client generates a unique Idempotency-Key (e.g. a UUID) per intended payout and re-sends the SAME
      * key if it retries. That's how a timeout-then-retry avoids paying twice. (Stripe's API uses the same pattern.)
+     *
+     * <p>Same ownership rule as {@link #balances}: an artist may request their own payout, nobody else's.
+     * Note that authorization is only the outer gate — the money rules (threshold, idempotency, row lock)
+     * still apply inside payout/PayoutService.java, so a permitted caller cannot be paid twice either.
      */
+    @PreAuthorize("@access.canActForCollaborator(authentication, #id)")
     @PostMapping("/{id}/payouts")
     public ResponseEntity<PayoutResponse> requestPayout(@PathVariable long id,
                                                         @RequestHeader("Idempotency-Key") String idempotencyKey) {

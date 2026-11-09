@@ -17,14 +17,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Drives the HTTP API the way a client would, via {@link MockMvc} (Spring's in-process HTTP simulator: real
  * controllers, validation and error handling, no network). Checks the status codes and JSON the controllers
  * promise, while the service-level ITs cover the money logic in depth.
+ *
+ * <p>Every request here carries a real ADMIN bearer token, because the filter chain in
+ * security/SecurityConfig.java refuses anonymous requests. Who may call what, and what happens WITHOUT a
+ * token, is the subject of SecurityAccessIT instead; this test is about the happy path and the error shapes.
  */
 class ApiFlowIT extends AbstractPostgresIT {
 
     @Autowired
     MockMvc mvc;
 
+    /** POST as an admin. The token is minted once per test by AbstractPostgresIT#adminToken. */
     private ResultActions postJson(String url, String json) throws Exception {
-        return mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content(json));
+        return mvc.perform(bearing(post(url), adminToken())
+                .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    /** GET as an admin. */
+    private ResultActions getAsAdmin(String url) throws Exception {
+        return mvc.perform(bearing(get(url), adminToken()));
     }
 
     private long idFrom(ResultActions result) throws Exception {
@@ -58,21 +69,24 @@ class ApiFlowIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.duplicate").value(true));
 
-        mvc.perform(get("/api/collaborators/" + ana + "/balances"))
+        getAsAdmin("/api/collaborators/" + ana + "/balances")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.payable").value(60.00));
 
-        mvc.perform(post("/api/collaborators/" + ana + "/payouts").header("Idempotency-Key", "pay-ana-1"))
+        mvc.perform(bearing(post("/api/collaborators/" + ana + "/payouts"), adminToken())
+                        .header("Idempotency-Key", "pay-ana-1"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.amount").value(60.00));
-        mvc.perform(post("/api/collaborators/" + ana + "/payouts").header("Idempotency-Key", "pay-ana-1"))
+        mvc.perform(bearing(post("/api/collaborators/" + ana + "/payouts"), adminToken())
+                        .header("Idempotency-Key", "pay-ana-1"))
                 .andExpect(status().isOk())                                    // replay, not a second payment
                 .andExpect(jsonPath("$.duplicate").value(true));
 
-        mvc.perform(post("/api/collaborators/" + ben + "/payouts").header("Idempotency-Key", "pay-ben-1"))
+        mvc.perform(bearing(post("/api/collaborators/" + ben + "/payouts"), adminToken())
+                        .header("Idempotency-Key", "pay-ben-1"))
                 .andExpect(status().isUnprocessableEntity());                  // Ben has 10.00, threshold 50.00
 
-        mvc.perform(get("/api/ledger/trial-balance"))
+        getAsAdmin("/api/ledger/trial-balance")
                 .andExpect(jsonPath("$.balanced").value(true));
     }
 
@@ -87,8 +101,9 @@ class ApiFlowIT extends AbstractPostgresIT {
 
         postJson("/api/collaborators", "{\"name\":\"\"}").andExpect(status().isBadRequest());                         // @NotBlank
         postJson("/api/collaborators/" + ana + "/advances", "{\"amount\":1.005}").andExpect(status().isBadRequest());  // 3 decimals
-        mvc.perform(post("/api/collaborators/" + ana + "/payouts")).andExpect(status().isBadRequest());               // no Idempotency-Key
-        mvc.perform(get("/api/collaborators/999/balances")).andExpect(status().isNotFound());
+        mvc.perform(bearing(post("/api/collaborators/" + ana + "/payouts"), adminToken()))
+                .andExpect(status().isBadRequest());                                                                  // no Idempotency-Key
+        getAsAdmin("/api/collaborators/999/balances").andExpect(status().isNotFound());
     }
 
     @Test
