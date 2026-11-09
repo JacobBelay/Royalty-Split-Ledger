@@ -49,14 +49,13 @@ jobs:
         env:
           # Point Testcontainers straight at the runner's Docker socket.
           #
-          # Without this the build fails here, and the error does not mention Docker: every *IT dies with
-          # "Could not initialize class AbstractPostgresIT". The cause is that Testcontainers tries its
-          # Docker Desktop strategy first, that strategy throws a NullPointerException on this runner
-          # (getSocketPath() returns null), and the exception aborts the whole discovery chain BEFORE the
-          # plain Unix-socket strategy is ever tried — even though the socket is right there and works.
+          # Without this, Testcontainers tries its Docker Desktop strategy first, that strategy throws a
+          # NullPointerException on this runner (getSocketPath() returns null), and the exception aborts the
+          # whole discovery chain BEFORE the plain Unix-socket strategy is ever tried — even though the
+          # socket is right there and works. Setting DOCKER_HOST makes the environment-variable strategy
+          # match first, so discovery succeeds and never reaches the broken one.
           #
-          # Setting DOCKER_HOST makes the environment-variable strategy match first, so discovery succeeds
-          # and never reaches the broken one.
+          # The second half of that bug is the Testcontainers version itself; see pom.xml.
           DOCKER_HOST: unix:///var/run/docker.sock
 
       # Written even when the step above failed, because a failed run is when the numbers are most useful.

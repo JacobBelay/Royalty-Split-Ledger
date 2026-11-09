@@ -34,6 +34,13 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- Override the version the Spring Boot parent manages (1.19.8).
+             Why: 1.19.8's Docker client asks for Docker API version 1.32, and Docker Engine 25+ refuses
+             anything below 1.40 ("client version 1.32 is too old"). On a current Docker install EVERY
+             integration test therefore fails before it starts, in CI and on a developer's laptop alike.
+             1.21.4 negotiates a supported version. Verified against Docker Engine 29.9.2 (min API 1.40):
+             all 60 integration tests pass. Do not drop back below 1.20 without re-testing this. -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencies>
