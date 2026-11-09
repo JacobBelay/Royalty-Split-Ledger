@@ -58,7 +58,25 @@ public abstract class AbstractPostgresIT {
     static {
         if (EXTERNAL_URL == null) {
             POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
-            POSTGRES.start();
+            try {
+                POSTGRES.start();
+            } catch (RuntimeException e) {
+                // Say what went wrong, because the default failure is genuinely baffling: a throw in a
+                // static initialiser makes JUnit report "Could not initialize class AbstractPostgresIT" on
+                // every single IT, with no mention of Docker anywhere in the message.
+                throw new IllegalStateException("""
+                        Could not start PostgreSQL via Testcontainers, so no integration test can run.
+
+                        Usually one of:
+                          * Docker is not running          -> start Docker Desktop and retry
+                          * Docker is running but not found -> set DOCKER_HOST, e.g.
+                                                               unix:///var/run/docker.sock on Linux/macOS
+                          * No Docker available at all      -> point the tests at your own empty Postgres:
+                                                               set TEST_DATABASE_URL (see the class javadoc
+                                                               and README "Run the tests")
+
+                        Original cause: """ + e, e);
+            }
         } else {
             POSTGRES = null;
         }
