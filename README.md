@@ -142,8 +142,7 @@ ledger, idempotent imports, row-level locking, JWT sign-in with roles, and CI.
 
 Still to do:
 
-1. **Deployment to AWS** (Elastic Beanstalk or ECS + RDS Postgres). This is the one remaining résumé claim
-   that is not yet true — nothing here deploys anywhere.
+1. **Deployment to AWS** (Elastic Beanstalk or ECS + RDS Postgres).
 2. Token refresh, and an admin endpoint to list or disable users.
 3. A `REVERSAL` entry kind, so a mistaken statement can be undone the append-only way (exercise 1 in the
    learning guide).
